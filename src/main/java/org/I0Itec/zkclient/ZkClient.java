@@ -694,9 +694,9 @@ public class ZkClient implements Watcher {
 
     private void resetUntilConnected() {
         // keep retrying until connected.
-        // otherwise if re-connect fail, ZkConnection will stuck in closed state (with _zk been set null).
-        // that will in return result in NullPointException that doesn't trigger connection reset.
-        // and hence ZkConnection is stuck in this bad state and keep throwing NPE for API call.
+        // note that reconnect can fail. e.g. UnknownHostException can happen occasionally when new zookeeper instance starts up.
+        // then ZkConnection will stuck in closed state with _zk been set to null
+        // that keeps throwing NullPointException that doesn't trigger connection reset.
         while( !waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS) ) {
             resetConnection();
         }
