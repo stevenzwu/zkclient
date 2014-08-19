@@ -15,18 +15,6 @@
  */
 package org.I0Itec.zkclient;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.TimeUnit;
-
 import org.I0Itec.zkclient.ZkEventThread.ZkEvent;
 import org.I0Itec.zkclient.exception.ZkBadVersionException;
 import org.I0Itec.zkclient.exception.ZkException;
@@ -40,14 +28,26 @@ import org.I0Itec.zkclient.util.ZkPathUtil;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
 import org.apache.zookeeper.KeeperException.SessionExpiredException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooKeeper.States;
 import org.apache.zookeeper.data.Stat;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Abstracts the interaction with zookeeper and allows permanent (not just one time) watches on nodes in ZooKeeper
@@ -347,6 +347,7 @@ public class ZkClient implements Watcher {
         return create(path, data, CreateMode.EPHEMERAL_SEQUENTIAL);
     }
 
+    @Override
     public void process(WatchedEvent event) {
         LOG.debug("Received event: " + event);
         _zookeeperEventThread = Thread.currentThread();
@@ -455,8 +456,8 @@ public class ZkClient implements Watcher {
             fireStateChangedEvent(event.getState());
 
             if (event.getState() == KeeperState.Expired) {
-                reconnect();
-                fireNewSessionEvents();
+                // didn't use resetUntilConnected (with potential long wait) inside event processing thread
+                resetConnection();
             }
         } catch (final Exception e) {
             throw new RuntimeException("Exception while restarting zk client", e);
@@ -676,11 +677,11 @@ public class ZkClient implements Watcher {
             } catch (ConnectionLossException e) {
                 // we give the event thread some time to update the status to 'Disconnected'
                 Thread.yield();
-                waitUntilConnected();
+                resetUntilConnected();
             } catch (SessionExpiredException e) {
                 // we give the event thread some time to update the status to 'Expired'
                 Thread.yield();
-                waitUntilConnected();
+                resetUntilConnected();
             } catch (KeeperException e) {
                 throw ZkException.create(e);
             } catch (InterruptedException e) {
@@ -688,6 +689,25 @@ public class ZkClient implements Watcher {
             } catch (Exception e) {
                 throw ExceptionUtil.convertToRuntimeException(e);
             }
+        }
+    }
+
+    private void resetUntilConnected() {
+        // keep retrying until connected.
+        // otherwise if re-connect fail, ZkConnection will stuck in closed state (with _zk been set null).
+        // that will in return result in NullPointException that doesn't trigger connection reset.
+        // and hence ZkConnection is stuck in this bad state and keep throwing NPE for API call.
+        while( !waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS) ) {
+            resetConnection();
+        }
+    }
+
+    private void resetConnection() {
+        try {
+            reconnect();
+            fireNewSessionEvents();
+        } catch (Exception e) {
+            LOG.error("Unable to reset connection", e);
         }
     }
 

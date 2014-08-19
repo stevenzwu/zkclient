@@ -15,15 +15,15 @@
  */
 package org.I0Itec.zkclient;
 
-import static org.mockito.Mockito.mock;
+import org.apache.commons.io.FileUtils;
+import org.mockito.exceptions.base.MockitoAssertionError;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.io.FileUtils;
-import org.mockito.exceptions.base.MockitoAssertionError;
+import static org.mockito.Mockito.mock;
 
 public class TestUtil {
 
@@ -93,11 +93,15 @@ public class TestUtil {
     }
 
     public static ZkServer startZkServer(String testName, int port) throws IOException {
+        return startZkServer(testName, ZkServer.DEFAULT_HOSTNAME, port);
+    }
+
+    public static ZkServer startZkServer(String testName, String hostname, int port) throws IOException {
         String dataPath = "./build/test/" + testName + "/data";
         String logPath = "./build/test/" + testName + "/log";
         FileUtils.deleteDirectory(new File(dataPath));
         FileUtils.deleteDirectory(new File(logPath));
-        ZkServer zkServer = new ZkServer(dataPath, logPath, mock(IDefaultNameSpace.class), port, ZkServer.DEFAULT_TICK_TIME, 100);
+        ZkServer zkServer = new ZkServer(dataPath, logPath, mock(IDefaultNameSpace.class), port, ZkServer.DEFAULT_TICK_TIME, 100, hostname);
         zkServer.start();
         return zkServer;
     }
