@@ -18,8 +18,7 @@ package org.I0Itec.zkclient;
 import org.I0Itec.zkclient.exception.ZkException;
 import org.I0Itec.zkclient.exception.ZkInterruptedException;
 import org.apache.log4j.Logger;
-import org.apache.zookeeper.server.NIOServerCnxn;
-import org.apache.zookeeper.server.NIOServerCnxn.Factory;
+import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 import javax.annotation.PostConstruct;
@@ -44,7 +43,7 @@ public class ZkServer {
     private IDefaultNameSpace _defaultNameSpace;
 
     private ZooKeeperServer _zk;
-    private Factory _nioFactory;
+    private NIOServerCnxnFactory _nioFactory;
     private ZkClient _zkClient;
     private int _port;
     private int _tickTime;
@@ -83,9 +82,9 @@ public class ZkServer {
 
     @PostConstruct
     public void start() {
-        LOG.info(String.format("Starting ZkServer on: hostname = {}, port = {}", _hostname, _port));
+        LOG.info(String.format("Starting ZkServer on: hostname = %s, port = %d", _hostname, _port));
         startZooKeeperServer();
-        _zkClient = new ZkClient(_hostname + ":" + _port, 10000);
+//        _zkClient = new ZkClient(_hostname + ":" + _port, 10000);
         _defaultNameSpace.createDefaultNameSpace(_zkClient);
     }
 
@@ -110,7 +109,8 @@ public class ZkServer {
         try {
             _zk = new ZooKeeperServer(dataDir, dataLogDir, tickTime);
             _zk.setMinSessionTimeout(_minSessionTimeout);
-            _nioFactory = new NIOServerCnxn.Factory(new InetSocketAddress(InetAddress.getByName(_hostname), port));
+            _nioFactory = new NIOServerCnxnFactory();
+            _nioFactory.configure(new InetSocketAddress(InetAddress.getByName(_hostname), port), 10);
             _nioFactory.startup(_zk);
         } catch (IOException e) {
             throw new ZkException("Unable to start single ZooKeeper server.", e);
@@ -122,11 +122,11 @@ public class ZkServer {
     @PreDestroy
     public void shutdown() {
         LOG.info("Shutting down ZkServer...");
-        try {
-            _zkClient.close();
-        } catch (ZkException e) {
-            LOG.warn("Error on closing zkclient: " + e.getClass().getName());
-        }
+//        try {
+//            _zkClient.close();
+//        } catch (ZkException e) {
+//            LOG.warn("Error on closing zkclient: " + e.getClass().getName());
+//        }
         if (_nioFactory != null) {
             _nioFactory.shutdown();
             try {

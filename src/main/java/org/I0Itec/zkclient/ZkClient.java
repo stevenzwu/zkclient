@@ -456,8 +456,8 @@ public class ZkClient implements Watcher {
             fireStateChangedEvent(event.getState());
 
             if (event.getState() == KeeperState.Expired) {
-                // didn't use resetUntilConnected (with potential long wait) inside event processing thread
-                resetConnection();
+                reconnect();
+                fireNewSessionEvents();
             }
         } catch (final Exception e) {
             throw new RuntimeException("Exception while restarting zk client", e);
@@ -677,11 +677,11 @@ public class ZkClient implements Watcher {
             } catch (ConnectionLossException e) {
                 // we give the event thread some time to update the status to 'Disconnected'
                 Thread.yield();
-                resetUntilConnected();
+                refreshServerListIfNotConnected();
             } catch (SessionExpiredException e) {
                 // we give the event thread some time to update the status to 'Expired'
                 Thread.yield();
-                resetUntilConnected();
+                refreshServerListIfNotConnected();
             } catch (KeeperException e) {
                 throw ZkException.create(e);
             } catch (InterruptedException e) {
@@ -692,22 +692,22 @@ public class ZkClient implements Watcher {
         }
     }
 
-    private void resetUntilConnected() {
-        // keep retrying until connected.
-        // note that reconnect can fail. e.g. UnknownHostException can happen occasionally when new zookeeper instance starts up.
-        // then ZkConnection will stuck in closed state with _zk been set to null
-        // that keeps throwing NullPointException that doesn't trigger connection reset.
-        while( !waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS) ) {
-            resetConnection();
-        }
-    }
-
-    private void resetConnection() {
-        try {
-            reconnect();
-            fireNewSessionEvents();
-        } catch (Exception e) {
-            LOG.error("Unable to reset connection", e);
+    private void refreshServerListIfNotConnected() {
+        // use timeout wait so that it can retry the call
+        // that can trigger send and reset socket
+        if(!waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS)) {
+            // this can force the resolution of IP address again,
+            // which is needed for rolling push of zookeeper cluster in cloud env
+            // where private IP can change
+            try {
+                LOG.info("refresh server list");
+                _connection.refreshServerList();
+//                LOG.info("wait " + _connection.getSessionTimeout());
+//                waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS);
+            } catch(Exception e) {
+                // catch and log all exceptions
+                LOG.error("failed to refresh server list", e);
+            }
         }
     }
 

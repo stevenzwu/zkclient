@@ -21,6 +21,7 @@ import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper.States;
 import org.apache.zookeeper.data.Stat;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface IZkConnection {
@@ -50,4 +51,6 @@ public interface IZkConnection {
     public String getServers();
 
     public long getSessionTimeout();
+
+    public void refreshServerList() throws IOException;
 }
