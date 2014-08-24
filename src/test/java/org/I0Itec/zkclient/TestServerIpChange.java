@@ -2,6 +2,8 @@ package org.I0Itec.zkclient;
 
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
@@ -36,20 +38,21 @@ import java.io.IOException;
  */
 @Ignore
 public class TestServerIpChange {
+    Logger logger = LoggerFactory.getLogger(TestServerIpChange.class);
 
     @Test
     public void test() throws InterruptedException, IOException {
         System.setProperty("log4j.logger.org.apache.zookeeper", "INFO");
         ZkServer _zkServer = TestUtil.startZkServer("Zk_SERVER_IP_Change", "192.168.1.1", 2181);
 
-        ZkClient client = new ZkClient("zkserver:2181", 15000);
+        ZkClient client = new ZkClient("zkserver:2181", 10000, 5000);
         client.createEphemeral("/a");
         for (int i = 0; i < 5; ++i) {
-            System.out.println("send and receive data: " + i);
+            logger.info("send and receive data: " + i);
             client.readData("/a");
             client.writeData("/a", Integer.toString(i));
             Thread.sleep(1000);
-            System.out.println("sleeping..." + i);
+            logger.info("sleeping..." + i);
         }
         _zkServer.shutdown();
 
@@ -57,11 +60,11 @@ public class TestServerIpChange {
         // change /etc/hosts
         client.createEphemeral("/a");
         for (int i = 0; i < 5; ++i) {
-            System.out.println("send and receive data: " + i);
+            logger.info("send and receive data: " + i);
             client.readData("/a");
             client.writeData("/a", Integer.toString(i));
             Thread.sleep(1000);
-            System.out.println("sleeping..." + i);
+            logger.info("sleeping..." + i);
         }
         _zkServer.shutdown();
     }
