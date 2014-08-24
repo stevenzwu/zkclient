@@ -41,7 +41,7 @@ public class TestServerIpChange {
     public void test() throws InterruptedException, IOException {
         ZkServer _zkServer = TestUtil.startZkServer("Zk_SERVER_IP_Change", "192.168.1.1", 2181);
 
-        ZkClient client = new ZkClient("zkserver:2181", 5000);
+        ZkClient client = new ZkClient("zkserver:2181", 30000, 5000);
         client.createEphemeral("/a");
         for (int i = 0; i < 10; ++i) {
             System.out.println("send and receive data: " + i);
