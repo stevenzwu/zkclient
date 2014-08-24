@@ -456,8 +456,8 @@ public class ZkClient implements Watcher {
             fireStateChangedEvent(event.getState());
 
             if (event.getState() == KeeperState.Expired) {
-                // didn't use resetUntilConnected (with potential long wait) inside event processing thread
-                resetConnection();
+                reconnect();
+                fireNewSessionEvents();
             }
         } catch (final Exception e) {
             throw new RuntimeException("Exception while restarting zk client", e);
@@ -693,21 +693,28 @@ public class ZkClient implements Watcher {
     }
 
     private void resetUntilConnected() {
-        // keep retrying until connected.
-        // note that reconnect can fail. e.g. UnknownHostException can happen occasionally when new zookeeper instance starts up.
-        // then ZkConnection will stuck in closed state with _zk been set to null
-        // that keeps throwing NullPointException that doesn't trigger connection reset.
-        while( !waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS) ) {
-            resetConnection();
-        }
-    }
-
-    private void resetConnection() {
+        // lock the whole way to avoid multiple threads
+        // initiate reconnect simultaneously/back-to-back
+        getEventLock().lock();
         try {
-            reconnect();
-            fireNewSessionEvents();
-        } catch (Exception e) {
-            LOG.error("Unable to reset connection", e);
+            // set wait timeout as 1/3 of session timeout
+            // so that we can try reconnect before session timeout
+            long timeout = _connection.getSessionTimeout() / 3;
+            // keep retrying until connected.
+            // note that reconnect can fail. e.g. UnknownHostException can happen occasionally when new zookeeper instance starts up.
+            // then ZkConnection will stuck in closed state with _zk been set to null
+            // that keeps throwing NullPointException that doesn't trigger connection reset.
+            while( !waitUntilConnected(timeout, TimeUnit.MILLISECONDS) ) {
+                try {
+                    reconnect();
+                    // note that we shouldn't fire new session event here
+                    // since session may not expired yet
+                } catch(Exception e) {
+                    LOG.debug("failed to reconnect", e);
+                }
+            }
+        } finally {
+            getEventLock().unlock();
         }
     }
 
