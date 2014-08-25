@@ -707,8 +707,9 @@ public class ZkClient implements Watcher {
             while( !waitUntilConnected(timeout, TimeUnit.MILLISECONDS) ) {
                 try {
                     reconnect();
-                    // note that we shouldn't fire new session event here
-                    // since session may not expired yet
+                    // since this code path usually doesn't trigger expire event,
+                    // we should fireNewSessionEvents()
+                    fireNewSessionEvents();
                 } catch(Exception e) {
                     LOG.debug("failed to reconnect", e);
                 }
