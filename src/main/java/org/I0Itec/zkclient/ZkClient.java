@@ -67,6 +67,7 @@ public class ZkClient implements Watcher {
     // TODO PVo remove this later
     private Thread _zookeeperEventThread;
     private ZkSerializer _zkSerializer;
+    private final int _connectionTimeout;
 
     public ZkClient(String serverstring) {
         this(serverstring, Integer.MAX_VALUE);
@@ -95,6 +96,7 @@ public class ZkClient implements Watcher {
     public ZkClient(IZkConnection zkConnection, int connectionTimeout, ZkSerializer zkSerializer) {
         _connection = zkConnection;
         _zkSerializer = zkSerializer;
+        _connectionTimeout = connectionTimeout;
         connect(connectionTimeout, this);
     }
 
@@ -697,9 +699,7 @@ public class ZkClient implements Watcher {
         // initiate reconnect simultaneously/back-to-back
         getEventLock().lock();
         try {
-            // set wait timeout as 1/3 of session timeout
-            // so that we can try reconnect before session timeout
-            long timeout = _connection.getSessionTimeout() / 3;
+            long timeout = Math.max(_connection.getSessionTimeout() / 3, _connectionTimeout * 2);
             // keep retrying until connected.
             // note that reconnect can fail. e.g. UnknownHostException can happen occasionally when new zookeeper instance starts up.
             // then ZkConnection will stuck in closed state with _zk been set to null
