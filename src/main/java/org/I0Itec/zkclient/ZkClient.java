@@ -454,16 +454,7 @@ public class ZkClient implements Watcher {
         if (getShutdownTrigger()) {
             return;
         }
-        try {
-            fireStateChangedEvent(event.getState());
-
-            if (event.getState() == KeeperState.Expired) {
-                reconnect();
-                fireNewSessionEvents();
-            }
-        } catch (final Exception e) {
-            throw new RuntimeException("Exception while restarting zk client", e);
-        }
+        fireStateChangedEvent(event.getState());
     }
 
     private void fireNewSessionEvents() {
@@ -479,12 +470,24 @@ public class ZkClient implements Watcher {
     }
 
     private void fireStateChangedEvent(final KeeperState state) {
+        // notify other listeners
         for (final IZkStateListener stateListener : _stateListener) {
             _eventThread.send(new ZkEvent("State changed to " + state + " sent to " + stateListener) {
-
                 @Override
                 public void run() throws Exception {
                     stateListener.handleStateChanged(state);
+                }
+            });
+        }
+        // schedule expire action in ZkClient event thread.
+        // not running it inside ZooKeeper event thread.
+        if (state == KeeperState.Expired) {
+            LOG.info("schedule reset event because session expired");
+            _eventThread.send(new ZkEvent("session expired. reset connection") {
+                @Override
+                public void run() throws Exception {
+                    LOG.info("resetUntilConnected because state changed to expired");
+                    resetUntilConnected();
                 }
             });
         }
