@@ -67,6 +67,7 @@ public class ZkClient implements Watcher {
     // TODO PVo remove this later
     private Thread _zookeeperEventThread;
     private ZkSerializer _zkSerializer;
+    private final int _connectionTimeout;
 
     public ZkClient(String serverstring) {
         this(serverstring, Integer.MAX_VALUE);
@@ -95,6 +96,7 @@ public class ZkClient implements Watcher {
     public ZkClient(IZkConnection zkConnection, int connectionTimeout, ZkSerializer zkSerializer) {
         _connection = zkConnection;
         _zkSerializer = zkSerializer;
+        _connectionTimeout = connectionTimeout;
         connect(connectionTimeout, this);
     }
 
@@ -695,15 +697,14 @@ public class ZkClient implements Watcher {
     private void refreshServerListIfNotConnected() {
         // use timeout wait so that it can retry the call
         // that can trigger send and reset socket
-        if(!waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS)) {
+        long timeout = Math.max(_connection.getSessionTimeout() / 3, _connectionTimeout * 2);
+        if(!waitUntilConnected(timeout, TimeUnit.MILLISECONDS)) {
             // this can force the resolution of IP address again,
             // which is needed for rolling push of zookeeper cluster in cloud env
             // where private IP can change
             try {
                 LOG.info("refresh server list");
                 _connection.refreshServerList();
-//                LOG.info("wait " + _connection.getSessionTimeout());
-//                waitUntilConnected(_connection.getSessionTimeout(), TimeUnit.MILLISECONDS);
             } catch(Exception e) {
                 // catch and log all exceptions
                 LOG.error("failed to refresh server list", e);

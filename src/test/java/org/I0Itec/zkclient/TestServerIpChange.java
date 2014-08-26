@@ -45,9 +45,9 @@ public class TestServerIpChange {
         System.setProperty("log4j.logger.org.apache.zookeeper", "INFO");
         ZkServer _zkServer = TestUtil.startZkServer("Zk_SERVER_IP_Change", "192.168.1.1", 2181);
 
-        ZkClient client = new ZkClient("zkserver:2181", 10000, 5000);
+        ZkClient client = new ZkClient("zkserver:2181", 30000, 5000);
         client.createEphemeral("/a");
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 10; ++i) {
             logger.info("send and receive data: " + i);
             client.readData("/a");
             client.writeData("/a", Integer.toString(i));
@@ -59,7 +59,7 @@ public class TestServerIpChange {
         _zkServer = TestUtil.startZkServer("Zk_SERVER_IP_Change", "192.168.1.2", 2181);
         // change /etc/hosts
         client.createEphemeral("/a");
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 10; ++i) {
             logger.info("send and receive data: " + i);
             client.readData("/a");
             client.writeData("/a", Integer.toString(i));
