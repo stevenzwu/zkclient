@@ -136,4 +136,14 @@ public class ZkConnection implements IZkConnection {
     public String getServers() {
         return _servers;
     }
+
+    @Override
+    public long getSessionTimeout() {
+        return _sessionTimeOut;
+    }
+
+    @Override
+    public void refreshServerList() throws IOException {
+        _zk.updateServerList(_servers);
+    }
 }

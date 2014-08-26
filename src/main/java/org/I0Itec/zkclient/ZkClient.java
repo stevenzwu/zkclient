@@ -15,18 +15,6 @@
  */
 package org.I0Itec.zkclient;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.TimeUnit;
-
 import org.I0Itec.zkclient.ZkEventThread.ZkEvent;
 import org.I0Itec.zkclient.exception.ZkBadVersionException;
 import org.I0Itec.zkclient.exception.ZkException;
@@ -40,14 +28,26 @@ import org.I0Itec.zkclient.util.ZkPathUtil;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
 import org.apache.zookeeper.KeeperException.SessionExpiredException;
+import org.apache.zookeeper.WatchedEvent;
+import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooKeeper.States;
 import org.apache.zookeeper.data.Stat;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Abstracts the interaction with zookeeper and allows permanent (not just one time) watches on nodes in ZooKeeper
@@ -67,6 +67,7 @@ public class ZkClient implements Watcher {
     // TODO PVo remove this later
     private Thread _zookeeperEventThread;
     private ZkSerializer _zkSerializer;
+    private final int _connectionTimeout;
 
     public ZkClient(String serverstring) {
         this(serverstring, Integer.MAX_VALUE);
@@ -95,6 +96,7 @@ public class ZkClient implements Watcher {
     public ZkClient(IZkConnection zkConnection, int connectionTimeout, ZkSerializer zkSerializer) {
         _connection = zkConnection;
         _zkSerializer = zkSerializer;
+        _connectionTimeout = connectionTimeout;
         connect(connectionTimeout, this);
     }
 
@@ -446,7 +448,7 @@ public class ZkClient implements Watcher {
     }
 
     private void processStateChanged(WatchedEvent event) {
-        LOG.info("zookeeper state changed (" + event.getState() + ")");
+        LOG.info("zookeeper state changed to " + event.getState());
         setCurrentState(event.getState());
         if (getShutdownTrigger()) {
             return;
@@ -455,6 +457,7 @@ public class ZkClient implements Watcher {
             fireStateChangedEvent(event.getState());
 
             if (event.getState() == KeeperState.Expired) {
+                LOG.info("reset connection after receiving expired event");
                 reconnect();
                 fireNewSessionEvents();
             }
@@ -464,9 +467,9 @@ public class ZkClient implements Watcher {
     }
 
     private void fireNewSessionEvents() {
+        LOG.info("fireNewSessionEvents");
         for (final IZkStateListener stateListener : _stateListener) {
             _eventThread.send(new ZkEvent("New session event sent to " + stateListener) {
-
                 @Override
                 public void run() throws Exception {
                     stateListener.handleNewSession();
@@ -676,17 +679,35 @@ public class ZkClient implements Watcher {
             } catch (ConnectionLossException e) {
                 // we give the event thread some time to update the status to 'Disconnected'
                 Thread.yield();
-                waitUntilConnected();
+                refreshServerListIfNotConnected();
             } catch (SessionExpiredException e) {
                 // we give the event thread some time to update the status to 'Expired'
                 Thread.yield();
-                waitUntilConnected();
+                refreshServerListIfNotConnected();
             } catch (KeeperException e) {
                 throw ZkException.create(e);
             } catch (InterruptedException e) {
                 throw new ZkInterruptedException(e);
             } catch (Exception e) {
                 throw ExceptionUtil.convertToRuntimeException(e);
+            }
+        }
+    }
+
+    private void refreshServerListIfNotConnected() {
+        // use timeout wait so that it can retry the call
+        // that can trigger send and reset socket
+        long timeout = Math.max(_connection.getSessionTimeout() / 3, _connectionTimeout * 2);
+        if(!waitUntilConnected(timeout, TimeUnit.MILLISECONDS)) {
+            // this can force the resolution of IP address again,
+            // which is needed for rolling push of zookeeper cluster in cloud env
+            // where private IP can change
+            try {
+                LOG.info("refresh server list");
+                _connection.refreshServerList();
+            } catch(Exception e) {
+                // catch and log all exceptions
+                LOG.error("failed to refresh server list", e);
             }
         }
     }
@@ -933,6 +954,7 @@ public class ZkClient implements Watcher {
     }
 
     private void reconnect() {
+        LOG.info("reconnect");
         getEventLock().lock();
         try {
             _connection.close();

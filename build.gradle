@@ -7,7 +7,7 @@ apply plugin: 'project-reports'
 apply plugin: 'osgi'
 
 group = 'com.101tec'
-version = '0.3-dev'
+version = '0.3.nf1'
 sourceCompatibility = 1.6
 
 jar {
@@ -22,10 +22,10 @@ jar {
 //--------------------
 repositories {
     flatDir(dirs: 'lib')
-	// mavenCentral()
-	// maven {
-    //     url "https://oss.sonatype.org/content/repositories/com101tec-553"
-    //}
+	mavenCentral()
+	maven {
+         url "https://oss.sonatype.org/content/repositories/com101tec-553"
+    }
 }
 dependencies {
 	//compile 'com.101tec:zkclient:0.2'
@@ -34,7 +34,7 @@ dependencies {
         exclude group: "com.sun.jmx", module: "jmxri"
         exclude group: "javax.jms", module: "jms"
 	}
-	compile ('org.apache.zookeeper:zookeeper:3.3.1') {
+	compile ('org.apache.zookeeper:zookeeper:3.5.0-alpha') {
 		exclude group: "com.sun.jdmk", module: "jmxtools"
         exclude group: "com.sun.jmx", module: "jmxri"
         exclude group: "javax.jms", module: "jms"
@@ -75,11 +75,11 @@ eclipse {
     }
 }
 
-task eclipseJdtPrepare(type: Copy) {
-	from rootProject.file('src/build/eclipse/org.eclipse.jdt.core.prefs')
-	into project.file('.settings/')
-}
-tasks["eclipseJdt"].dependsOn(eclipseJdtPrepare)
+//task eclipseJdtPrepare(type: Copy) {
+//	from rootProject.file('src/build/eclipse/org.eclipse.jdt.core.prefs')
+//	into project.file('.settings/')
+//}
+//tasks["eclipseJdt"].dependsOn(eclipseJdtPrepare)
 
 
 //--------------------
