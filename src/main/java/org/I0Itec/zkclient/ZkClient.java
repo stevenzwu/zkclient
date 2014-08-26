@@ -706,6 +706,8 @@ public class ZkClient implements Watcher {
             // that keeps throwing NullPointException that doesn't trigger connection reset.
             while( !waitUntilConnected(timeout, TimeUnit.MILLISECONDS) ) {
                 try {
+                    LOG.debug(String.format("still not connected after waiting for %d milli-seconds. reconnecting ...", timeout));
+                    // close and connect
                     reconnect();
                     // since this code path usually doesn't trigger expire event,
                     // we should fireNewSessionEvents()
