@@ -486,7 +486,7 @@ public class ZkClient implements Watcher {
             _eventThread.send(new ZkEvent("session expired. reset connection") {
                 @Override
                 public void run() throws Exception {
-                    LOG.info("reset connection because state changed to expired");
+                    LOG.info("resetUntilConnected because state changed to expired");
                     resetUntilConnected();
                 }
             });
@@ -682,12 +682,12 @@ public class ZkClient implements Watcher {
             } catch (ConnectionLossException e) {
                 // we give the event thread some time to update the status to 'Disconnected'
                 Thread.yield();
-                LOG.info("reset connection because of ConnectionLossException");
+                LOG.info("resetUntilConnected because of ConnectionLossException");
                 resetUntilConnected();
             } catch (SessionExpiredException e) {
                 // we give the event thread some time to update the status to 'Expired'
                 Thread.yield();
-                LOG.info("reset connection because of SessionExpiredException");
+                LOG.info("resetUntilConnected because of SessionExpiredException");
                 resetUntilConnected();
             } catch (KeeperException e) {
                 throw ZkException.create(e);
@@ -711,11 +711,12 @@ public class ZkClient implements Watcher {
             // that keeps throwing NullPointException that doesn't trigger connection reset.
             while( !waitUntilConnected(timeout, TimeUnit.MILLISECONDS) ) {
                 try {
-                    LOG.debug(String.format("still not connected after waiting for %d milli-seconds. reconnecting ...", timeout));
                     // close and connect
+                    LOG.info(String.format("still not connected after waiting for %d milli-seconds. reconnecting ...", timeout));
                     reconnect();
                     // since this code path usually doesn't trigger expire event,
                     // we should fireNewSessionEvents()
+                    LOG.info("fireNewSessionEvents");
                     fireNewSessionEvents();
                 } catch(Exception e) {
                     LOG.debug("failed to reconnect", e);
